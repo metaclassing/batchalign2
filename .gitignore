@@ -11,3 +11,13 @@ specification.py
 /.eggs/
 
 *.egg-info
+
+input
+output
+venv
+start.bat
+
+uploads/tmp/*
+3xamples
+inputfiles/*
+outputfiles/*

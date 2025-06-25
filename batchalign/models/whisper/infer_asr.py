@@ -205,6 +205,9 @@ class WhisperASRModel(object):
         # to filter out the one word prompt
         words = words["chunks"]
 
+        # filter out words with None or invalid timestamps
+        words = [w for w in words if w.get("timestamp") is not None and isinstance(w["timestamp"], (list, tuple)) and len(w["timestamp"]) == 2]
+
         # filter out the elements in the prompt, which has timestamp (0,0)
         # words = list(filter(lambda x:x["timestamp"] != (0.0, 0.0), words))
 
@@ -280,4 +283,3 @@ class WhisperASRModel(object):
 
         L.debug("Whisper Done.")
         return ({"monologues": turns})
-

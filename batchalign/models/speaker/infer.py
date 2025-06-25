@@ -26,26 +26,42 @@ class NemoSpeakerModel(object):
         try:
             from omegaconf import OmegaConf
             self.__base = OmegaConf.load(resolve_config())
-        except ImportError:
-            self.__raise()
+        except ImportError as e:
+            self.__raise(e)
 
-    def __raise(self):
-        raise ImportError("Failed to import the NeMo framework or its dependencies!\nHint: run 'pip install -U \"batchalign[speaker]\"' to install speaker diarization tools.")
+    def __raise(self, original_exception=None):
+        import traceback
+        if original_exception:
+            print("Original ImportError in NeMo import:", original_exception)
+            print(traceback.format_exc())
+        raise ImportError("Failed to import the NeMo framework or its dependencies!\nHint: run 'pip install -U \"batchalign[speaker]\"' to install speaker diarization tools.") from original_exception
 
-    def __call__(self, in_file, num_speakers=2):
+    def __call__(self, in_file, num_speakers=2, output_dir=None):
         try:
             from pydub import AudioSegment
             from nemo.collections.asr.models.msdd_models import NeuralDiarizer
             from nemo.collections.asr.modules.msdd_diarizer import MSDD_module
             # override msdd implementation
             MSDD_module.conv_scale_weights = conv_scale_weights
-        except ImportError:
-            self.__raise()
+        except ImportError as e:
+            self.__raise(e)
 
         # make a copy of the input config
         config = copy.deepcopy(self.__base)
-        # create a working directory and configure settings
-        with tempfile.TemporaryDirectory() as workdir:
+
+        import shutil
+        import pathlib
+
+        if output_dir is not None:
+            workdir = os.path.abspath(output_dir)
+            os.makedirs(workdir, exist_ok=True)
+            cleanup = False
+        else:
+            tempdir = tempfile.TemporaryDirectory()
+            workdir = tempdir.name
+            cleanup = True
+
+        try:
             # create the mono file
             sound = AudioSegment.from_file(in_file).set_channels(1)
             sound.export(os.path.join(workdir, "mono_file.wav"), format="wav")
@@ -74,7 +90,6 @@ class NemoSpeakerModel(object):
             msdd_model.diarize()
 
             # read output and return
-            # https://github.com/MahmoudAshraf97/whisper-diarization/blob/main/diarize.py
             speaker_ts = []
             with open(os.path.join(workdir, "pred_rttms", "mono_file.rttm"), "r") as f:
                 lines = f.readlines()
@@ -84,4 +99,6 @@ class NemoSpeakerModel(object):
                     e = s + int(float(line_list[8]) * 1000)
                     speaker_ts.append([s, e, int(line_list[11].split("_")[-1])])
             return speaker_ts
-
+        finally:
+            if cleanup:
+                tempdir.cleanup()
